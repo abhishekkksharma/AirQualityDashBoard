@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>IoT Dashboard</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f0f4f8;
+    --card: #ffffff;
+    --border: rgba(0,0,0,0.07);
+    --text: #111827;
+    --muted: #9ca3af;
+    --muted2: #6b7280;
+    --accent-blue: #3b82f6;
+    --accent-blue-bg: #eff6ff;
+    --accent-teal: #0d9488;
+    --accent-amber: #d97706;
+    --accent-amber-bg: #fffbeb;
+    --accent-green: #16a34a;
+    --accent-green-bg: #f0fdf4;
+    --accent-rose: #e11d48;
+    --accent-rose-bg: #fff1f2;
+    --radius: 22px;
+    --radius-sm: 16px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    color: var(--text);
+    background-image:
+      radial-gradient(ellipse 70% 50% at 20% 0%, rgba(59,130,246,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 85% 90%, rgba(13,148,136,0.06) 0%, transparent 60%);
+  }
+
+  .dashboard {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: fadeUp 0.55s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Header */
+  .header-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow);
+  }
+
+  .header-left .label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-teal);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent-teal);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:.3; transform:scale(.65); }
+  }
+
+  .header-left h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -.3px;
+  }
+
+  .header-icon {
+    width: 46px; height: 46px;
+    background: var(--accent-amber-bg);
+    border: 1px solid rgba(217,119,6,.15);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Temp card */
+  .temp-card {
+    background: var(--card);
+    border: 1px solid rgba(59,130,246,.15);
+    border-radius: var(--radius);
+    padding: 26px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: var(--shadow-md);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .temp-card::before {
+    content:'';
+    position:absolute; top:-30px; right:-30px;
+    width:140px; height:140px;
+    background: radial-gradient(circle, rgba(59,130,246,.07) 0%, transparent 70%);
+    pointer-events:none;
+  }
+
+  .temp-left .sub {
+    font-size: 11px;
+    color: var(--accent-blue);
+    font-weight: 600;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .temp-value {
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(52px, 14vw, 70px);
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -2px;
+  }
+
+  .temp-icon-wrap {
+    width: 68px; height: 68px;
+    background: #eff6ff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 18px 16px;
+    box-shadow: var(--shadow);
+    transition: transform .18s, box-shadow .18s;
+  }
+
+  .stat-card:active { transform: scale(.97); box-shadow: none; }
+  .stat-card.full   { grid-column: 1 / -1; }
+
+  .stat-icon {
+    width: 38px; height: 38px;
+    border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 5px;
+  }
+
+  .stat-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -.5px;
+  }
+
+  .stat-unit {
+    font-size: 13px;
+    color: var(--muted2);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    margin-left: 2px;
+  }
+
+  .stat-card.humidity .stat-icon  { background: #eff6ff; }
+  .stat-card.humidity .stat-value { color: var(--accent-blue); }
+  .stat-card.humidity              { border-color: rgba(59,130,246,.13); }
+
+  .stat-card.air .stat-icon  { background: var(--accent-amber-bg); }
+  .stat-card.air .stat-value { color: var(--accent-amber); }
+  .stat-card.air              { border-color: rgba(217,119,6,.13); }
+
+  .stat-card.co2 .stat-icon  { background: var(--accent-green-bg); }
+  .stat-card.co2 .stat-value { color: var(--accent-green); }
+  .stat-card.co2              { border-color: rgba(22,163,74,.13); }
+
+  /* Status bar */
+  .status-bar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  .status-label { font-size:12px; color:var(--muted2); font-weight:500; margin-bottom:3px; }
+
+  .timestamp { font-size:11px; color:var(--muted); font-family:'DM Mono',monospace; }
+
+  .status-badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 20px;
+    letter-spacing: .04em;
+    white-space: nowrap;
+    transition: all .35s;
+  }
+
+  .badge-good     { background:var(--accent-green-bg); color:var(--accent-green); border:1px solid rgba(22,163,74,.2); }
+  .badge-moderate { background:var(--accent-amber-bg); color:var(--accent-amber); border:1px solid rgba(217,119,6,.2); }
+  .badge-poor     { background:var(--accent-rose-bg);  color:var(--accent-rose);  border:1px solid rgba(225,29,72,.2); }
+
+  svg { display:block; }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+
+  <!-- Header -->
+  <div class="header-card">
+    <div class="header-left">
+      <div class="label"><span class="live-dot"></span>Live monitoring</div>
+      <h1>Environment</h1>
+    </div>
+    <div class="header-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Temperature -->
+  <div class="temp-card">
+    <div class="temp-left">
+      <div class="sub">Temperature</div>
+      <div class="temp-value" id="temp">--°</div>
+    </div>
+    <div class="temp-icon-wrap">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+
+    <div class="stat-card humidity">
+      <div class="stat-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+        </svg>
+      </div>
+      <div class="stat-label">Humidity</div>
+      <div class="stat-value"><span id="humidity">--</span><span class="stat-unit">%</span></div>
+    </div>
+
+    <div class="stat-card air">
+      <div class="stat-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>
+        </svg>
+      </div>
+      <div class="stat-label">MQ135</div>
+      <div class="stat-value" id="mq135">--</div>
+    </div>
+
+    <div class="stat-card co2 full">
+      <div class="stat-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 22 16 8M3.17 15A7 7 0 1 0 15 3.17"/><path d="M8 22a5 5 0 0 0-5-5"/><circle cx="20" cy="4" r="2"/>
+        </svg>
+      </div>
+      <div class="stat-label">CO₂ Level</div>
+      <div class="stat-value"><span id="co2">--</span><span class="stat-unit">ppm</span></div>
+    </div>
+
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div>
+      <div class="status-label">Air Quality Status</div>
+      <div class="timestamp" id="last-updated">Waiting for data…</div>
+    </div>
+    <div class="status-badge badge-good" id="status-badge">—</div>
+  </div>
+
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAnOlSp29VeB0AIaeKSk9G-Y3R3f70XrGU",
+    databaseURL: "https://iot-project-2fce4-default-rtdb.firebaseio.com/"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  db.ref("sensor").on("value", (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+
+    document.getElementById("temp").innerText = data.temperature + "°";
+    document.getElementById("humidity").innerText = data.humidity ?? "--";
+    document.getElementById("mq135").innerText = data.mq135 ?? "--";
+    document.getElementById("co2").innerText = data.co2 ?? "N/A";
+
+    const badge = document.getElementById("status-badge");
+    let label = "Good", cls = "badge-good";
+    if (data.mq135 > 3000)      { label = "Poor";     cls = "badge-poor"; }
+    else if (data.mq135 > 2000) { label = "Moderate"; cls = "badge-moderate"; }
+
+    badge.textContent = label;
+    badge.className = "status-badge " + cls;
+
+    const now = new Date();
+    document.getElementById("last-updated").innerText =
+      "Updated " + now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  });
+
+  
+</script>
+
+</body>
+</html>
