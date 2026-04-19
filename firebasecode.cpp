@@ -22,65 +22,63 @@ FirebaseConfig config;
 
 DHT dht(DHTPIN, DHTTYPE);
 
-// CO2 UART
+// MH-Z19E UART
 HardwareSerial co2Serial(2);
+
+int readCO2() {
+  byte cmd[9] = {0xFF, 0x01, 0x86, 0, 0, 0, 0, 0, 0x79};
+  byte response[9];
+
+  while (co2Serial.available()) co2Serial.read();
+
+  co2Serial.write(cmd, 9);
+  delay(200);
+
+  if (co2Serial.available() >= 9) {
+    co2Serial.readBytes(response, 9);
+
+    if (response[0] == 0xFF && response[1] == 0x86) {
+      return response[2] * 256 + response[3];
+    }
+  }
+
+  return -1;
+}
 
 void setup() {
   Serial.begin(115200);
+
+  delay(2000);
   dht.begin();
 
   co2Serial.begin(9600, SERIAL_8N1, 16, 17);
 
-  // WiFi connect with timeout
   WiFi.begin(ssid, password);
-  Serial.print("Connecting...");
+  Serial.print("Connecting WiFi");
 
-  int timeout = 0;
-  while (WiFi.status() != WL_CONNECTED && timeout < 20) {
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    timeout++;
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi Connected");
-    Serial.print("IP: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("\nWiFi Failed!");
-  }
+  Serial.println();
+  Serial.println("WiFi Connected");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
 
-  // Firebase setup
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
 
-  // Proper authentication (IMPORTANT)
   if (Firebase.signUp(&config, &auth, "", "")) {
-    Serial.println("Signup OK");
+    Serial.println("Firebase Signup OK");
   } else {
-    Serial.printf("Signup error: %s\n", config.signer.signupError.message.c_str());
+    Serial.println(config.signer.signupError.message.c_str());
   }
-
-  config.token_status_callback = NULL;
 
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
 
   Serial.println("Firebase Ready");
-}
-
-int readCO2() {
-  byte cmd[9] = { 0xFF, 0x01, 0x86, 0, 0, 0, 0, 0, 0x79 };
-  byte response[9];
-
-  co2Serial.write(cmd, 9);
-  delay(10);
-
-  if (co2Serial.available() >= 9) {
-    co2Serial.readBytes(response, 9);
-    return (256 * response[2]) + response[3];
-  }
-  return -1;
 }
 
 void loop() {
@@ -89,39 +87,52 @@ void loop() {
   int mq135 = analogRead(MQ135_PIN);
   int co2 = readCO2();
 
-  Serial.println("------ Sending to Firebase ------");
+  Serial.println("------ Sensor Data ------");
 
-  // Temperature
-  if (Firebase.RTDB.setFloat(&fbdo, "/sensor/temperature", temp)) {
-    Serial.println("Temp OK");
-  } else {
-    Serial.println(fbdo.errorReason());
-  }
+  Serial.print("Temperature: ");
+  Serial.println(temp);
 
-  // Humidity
-  if (Firebase.RTDB.setFloat(&fbdo, "/sensor/humidity", hum)) {
-    Serial.println("Humidity OK");
-  } else {
-    Serial.println(fbdo.errorReason());
-  }
+  Serial.print("Humidity: ");
+  Serial.println(hum);
 
-  // MQ135
-  if (Firebase.RTDB.setInt(&fbdo, "/sensor/mq135", mq135)) {
-    Serial.println("MQ135 OK");
-  } else {
-    Serial.println(fbdo.errorReason());
-  }
+  Serial.print("MQ135: ");
+  Serial.println(mq135);
 
-  // CO2
-  if (co2 != -1) {
-    if (Firebase.RTDB.setInt(&fbdo, "/sensor/co2", co2)) {
-      Serial.println("CO2 OK");
-    } else {
+  Serial.print("CO2: ");
+  Serial.println(co2);
+
+  if (!isnan(temp)) {
+    if (Firebase.RTDB.setFloat(&fbdo, "/sensor/temperature", temp))
+      Serial.println("Temp Uploaded");
+    else
       Serial.println(fbdo.errorReason());
-    }
   } else {
-    Serial.println("CO2 not available");
+    Serial.println("DHT Temp Failed");
   }
 
+  if (!isnan(hum)) {
+    if (Firebase.RTDB.setFloat(&fbdo, "/sensor/humidity", hum))
+      Serial.println("Humidity Uploaded");
+    else
+      Serial.println(fbdo.errorReason());
+  } else {
+    Serial.println("DHT Humidity Failed");
+  }
+
+  if (Firebase.RTDB.setInt(&fbdo, "/sensor/mq135", mq135))
+    Serial.println("MQ135 Uploaded");
+  else
+    Serial.println(fbdo.errorReason());
+
+  if (co2 != -1) {
+    if (Firebase.RTDB.setInt(&fbdo, "/sensor/co2", co2))
+      Serial.println("CO2 Uploaded");
+    else
+      Serial.println(fbdo.errorReason());
+  } else {
+    Serial.println("CO2 Sensor Not Ready");
+  }
+
+  Serial.println("-------------------------");
   delay(5000);
 }
